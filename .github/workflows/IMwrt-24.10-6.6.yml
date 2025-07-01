@@ -45,7 +45,7 @@ on:
         description: '源仓库分支'
         default: 'openwrt-24.10-6.6'
   schedule:
-    - cron: '40 15 * * *'  # test
+ ＃   - cron: '40 15 * * *'  # test
 
 permissions:
   contents: write
