@@ -370,11 +370,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release list --repo ${{ github.repository }} --limit 100 --json name --jq '.[] | select(.name | test("ImmortalWrt-24.10-${{ matrix.device_model }}")) | .name' | tail -n +3 | xargs -I {} gh release delete {} --yes || true
+          gh release list --repo ${{ github.repository }} --limit 10 --json name --jq '.[] | select(.name | test("ImmortalWrt-24.10-${{ matrix.device_model }}")) | .name' | tail -n +3 | xargs -I {} gh release delete {} --yes || true
 
       - name: 清理旧工作流运行
         if: steps.tag.outputs.status == 'success'
         uses: Mattraks/delete-workflow-runs@v2
         with:
-          retain_days: 14  # Increased to retain more history
-          keep_minimum_runs: 5  # Increased to keep more runs
+          retain_days: 7  # Increased to retain more history
+          keep_minimum_runs: 3  # Increased to keep more runs
