@@ -144,7 +144,7 @@ jobs:
           echo "可用磁盘空间：${AVAILABLE}G"
 
       - name: 初始化环境
-         run: |
+        run: |
           sudo dnf install -y epel-release || echo "EPEL repo 已存在或不可用"
           sudo dnf makecache
     
