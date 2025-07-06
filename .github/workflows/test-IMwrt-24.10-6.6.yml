@@ -144,25 +144,30 @@ jobs:
           echo "可用磁盘空间：${AVAILABLE}G"
 
       - name: 初始化环境
-        run: |
-          sudo dnf install -y epel-release || echo "EPEL repo 已存在或不可用"
-          sudo dnf makecache
-          # 优先用 dnf 装 ccache，否则源码安装
-          if ! sudo dnf install -y ccache; then
-            echo "ccache 未找到，尝试源码编译安装"
-            sudo dnf install -y gcc-c++ make
-            curl -LO https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1.tar.gz
-            tar xzf ccache-4.9.1.tar.gz
-            cd ccache-4.9.1
-            if [ ! -f configure ]; then
-              echo "ccache 源码目录结构异常，未找到 configure"
-              exit 1
-            fi
-            ./configure
-            make
-            sudo make install
-            cd ..
-          fi
+         run: |
+           sudo dnf install -y epel-release || echo "EPEL repo 已存在或不可用"
+           sudo dnf makecache
+           # 优先用 dnf 装 ccache，否则源码安装
+           if ! sudo dnf install -y ccache; then
+             echo "ccache 未找到，尝试源码编译安装"
+             sudo dnf install -y gcc-c++ make cmake
+             curl -LO https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1.tar.gz
+             tar xzf ccache-4.9.1.tar.gz
+             cd ccache-4.9.1
+             if [ -f configure ]; then
+               ./configure
+               make
+               sudo make install
+             else
+               echo "未找到 configure，尝试用 cmake 构建"
+               mkdir build && cd build
+               cmake ..
+               make -j$(nproc)
+               sudo make install
+               cd ..
+             fi
+             cd ..
+           fi
            # 其余依赖照常安装
           sudo dnf install -y \
                 bash binutils bzip2 cmake coreutils curl diffutils findutils gawk gcc gcc-c++ \
