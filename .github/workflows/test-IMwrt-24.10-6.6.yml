@@ -149,14 +149,19 @@ jobs:
           sudo dnf makecache
           # 优先用 dnf 装 ccache，否则源码安装
           if ! sudo dnf install -y ccache; then
-          echo "ccache 未找到，尝试源码编译安装"
-          sudo dnf install -y gcc-c++ make
-          curl -L https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1.tar.gz | tar xz
-          cd ccache-4.9.1
-          ./configure
-          make
-          sudo make install
-          cd ..
+            echo "ccache 未找到，尝试源码编译安装"
+            sudo dnf install -y gcc-c++ make
+            curl -LO https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1.tar.gz
+            tar xzf ccache-4.9.1.tar.gz
+            cd ccache-4.9.1
+            if [ ! -f configure ]; then
+              echo "ccache 源码目录结构异常，未找到 configure"
+              exit 1
+            fi
+            ./configure
+            make
+            sudo make install
+            cd ..
           fi
            # 其余依赖照常安装
           sudo dnf install -y \
