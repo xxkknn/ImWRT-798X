@@ -147,18 +147,28 @@ jobs:
         run: |
           sudo dnf install -y epel-release || echo "EPEL repo 已存在或不可用"
           sudo dnf makecache
+          # 优先用 dnf 装 ccache，否则源码安装
+          if ! sudo dnf install -y ccache; then
+          echo "ccache 未找到，尝试源码编译安装"
+          sudo dnf install -y gcc-c++ make
+          curl -L https://github.com/ccache/ccache/releases/download/v4.9.1/ccache-4.9.1.tar.gz | tar xz
+          cd ccache-4.9.1
+          ./configure
+          make
+          sudo make install
+          cd ..
+          fi
+           # 其余依赖照常安装
           sudo dnf install -y \
-          bash binutils bzip2 cmake coreutils curl diffutils findutils gawk gcc gcc-c++ \
-          git gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget \
-          zlib-devel which
-          sudo dnf groupinstall -y "Development Tools"
-          # 单独安装 ccache，若失败仅警告不终止
-          sudo dnf install -y ccache || echo "警告：无法安装 ccache，可能不在仓库中"
-          sudo dnf autoremove -y
-          sudo dnf clean all
-          sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$USER /workdir
+                bash binutils bzip2 cmake coreutils curl diffutils findutils gawk gcc gcc-c++ \
+                git gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget \
+                zlib-devel which
+              sudo dnf groupinstall -y "Development Tools"
+              sudo dnf autoremove -y
+              sudo dnf clean all
+              sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
+              sudo mkdir -p /workdir
+              sudo chown $USER:$USER /workdir
     
       - name: 配置 ccache
         run: |
