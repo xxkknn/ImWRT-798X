@@ -76,24 +76,7 @@ jobs:
           fi
           echo "可用磁盘空间：${AVAILABLE}G"
 
-      #- name: 初始化环境
-        run: |
-          sudo dnf update -y
-          sudo dnf install -y epel-release || echo "EPEL 仓库已存在或不可用"
-          sudo dnf config-manager --enable epel || true
-          sudo dnf makecache
-          sudo dnf install -y \
-            bash binutils bzip2 coreutils curl diffutils findutils gawk gcc gcc-c++ git \
-            gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget \
-            zlib-devel which 
-          sudo dnf groupinstall -y "Development Tools"
-          sudo dnf autoremove -y
-          sudo dnf clean all
-          sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
-          sudo mkdir -p /workdir /mnt/tmpfs
-          sudo mount -t tmpfs -o size=2G tmpfs /mnt/tmpfs || echo "警告：无法挂载 tmpfs"
-          sudo mkdir -p /mnt/tmpfs/dl /mnt/tmpfs/ccache
-          sudo chown $USER:$USER /workdir /mnt/tmpfs
+
 
       - name: 配置 ccache
         run: |
