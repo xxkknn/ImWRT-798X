@@ -85,18 +85,22 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo dnf update -y
-          sudo dnf install -y epel-release || echo "EPEL 仓库已存在或不可用"
+          # 启用并刷新 EPEL
+          sudo dnf install -y epel-release
+          sudo dnf config-manager --enable epel || true
+          sudo dnf makecache
+          # 分步安装依赖包，单独尝试安装 ccache
           sudo dnf install -y \
             bash binutils bzip2 coreutils curl diffutils findutils gawk gcc gcc-c++ git \
             gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget \
-            zlib-devel which ccache
+            zlib-devel which
+          sudo dnf install -y ccache || echo "警告：ccache 未能通过 dnf 安装"
           sudo dnf groupinstall -y "Development Tools"
           sudo dnf autoremove -y
           sudo dnf clean all
           sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
           sudo mkdir -p /workdir
           sudo chown $USER:$USER /workdir
-
       - name: 配置 ccache
         # 优化：确保 ccache 适配 ARM64 路径，设置缓存大小为 5G
         run: |
