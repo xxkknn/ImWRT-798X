@@ -148,10 +148,12 @@ jobs:
           sudo dnf install -y epel-release || echo "EPEL repo 已存在或不可用"
           sudo dnf makecache
           sudo dnf install -y \
-          bash binutils bzip2 ccache cmake coreutils curl diffutils findutils gawk gcc gcc-c++ \
+          bash binutils bzip2 cmake coreutils curl diffutils findutils gawk gcc gcc-c++ \
           git gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget \
           zlib-devel which
           sudo dnf groupinstall -y "Development Tools"
+          # 单独安装 ccache，若失败仅警告不终止
+          sudo dnf install -y ccache || echo "警告：无法安装 ccache，可能不在仓库中"
           sudo dnf autoremove -y
           sudo dnf clean all
           sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
