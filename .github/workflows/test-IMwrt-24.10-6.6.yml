@@ -363,8 +363,8 @@ jobs:
             **Firmware Version**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}  
             **Device**: ${{ matrix.device_model }}  
             **Build Time**: $(date +"%Y-%m-%d %H:%M %Z")  
-            **High Power Mode**: ${{ env.ENABLE_5G_25DB == 'true' && 'Enabled' || 'Disabled' }}  
-EOF    echo "status=success" >> $GITHUB_OUTPUT
+            **High Power Mode**: ${{ env.ENABLE_5G_25DB == 'true' && 'Enabled' || 'Disabled' }}     
+             echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Publish firmware
         uses: softprops/action-gh-release@v2
