@@ -148,6 +148,15 @@ jobs:
           sudo dnf install -y epel-release || echo "EPEL repo already exists or unavailable"
           sudo dnf makecache
           sudo dnf install -y \
+            bash binutils bzip2 cmake coreutils curl diffutils findutils gawk gcc gcc-c++ git gzip make ncurses-devel patch python3 python3-pip rsync tar unzip vim wget zlib-devel which python3-setuptools
+          sudo dnf install -y ccache || echo "Warning: ccache not available"
+          sudo dnf install -y gh || echo "Warning: gh not available"
+          sudo dnf groupinstall -y "Development Tools"
+          sudo dnf autoremove -y
+          sudo dnf clean all
+          sudo timedatectl set-timezone "$TZ" || echo "Warning: Unable to set timezone"
+          sudo mkdir -p /workdir
+          sudo chown $USER:$USER /workdir
             bash \
             binutils \
             bzip2 \
