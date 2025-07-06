@@ -317,12 +317,12 @@ jobs:
           set -e
           echo "RELEASE_TAG=ImmortalWrt-24.10-${{ matrix.device_model }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
           cat << EOF > release.txt
-**Firmware Version**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}  
-**Device**: ${{ matrix.device_model }}  
-**Build Time**: $(date +"%Y-%m-%d %H:%M %Z")  
-**High Power Mode**: ${{ env.ENABLE_5G_25DB == 'true' && 'Enabled' || 'Disabled' }}  
-EOF
-          echo "status=success" >> $GITHUB_OUTPUT
+           **Firmware Version**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}  
+           **Device**: ${{ matrix.device_model }}  
+           **Build Time**: $(date +"%Y-%m-%d %H:%M %Z")  
+           **High Power Mode**: ${{ env.ENABLE_5G_25DB == 'true' && 'Enabled' || 'Disabled' }}  
+                EOF
+             echo "status=success" >> $GITHUB_OUTPUT
 
       - name: Publish firmware to GitHub Releases
         uses: softprops/action-gh-release@v2
