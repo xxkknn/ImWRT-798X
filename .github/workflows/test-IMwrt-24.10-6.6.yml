@@ -200,7 +200,11 @@ jobs:
           else
             echo "EEPROM 文件无需修改: $EEPROM_FILE"
           fi
-
+      - name: 安装 Python3 setuptools
+        run: |
+          sudo dnf install -y python3-setuptools python3-pip
+          pip3 install --upgrade setuptools
+    
       - name: 编译固件
         id: compile
         # 优化：缩短超时时间（180 → 120 分钟）
