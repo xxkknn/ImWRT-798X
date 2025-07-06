@@ -76,7 +76,7 @@ jobs:
           fi
           echo "可用磁盘空间：${AVAILABLE}G"
 
-      - name: 初始化环境
+      #- name: 初始化环境
         run: |
           sudo dnf update -y
           sudo dnf install -y epel-release || echo "EPEL 仓库已存在或不可用"
