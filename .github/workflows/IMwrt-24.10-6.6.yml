@@ -37,7 +37,7 @@ on:
         description: '启用 5G 25dB 修改'
         type: boolean
         required: true
-        default: false  # 默认值改为 false，避免意外启用
+        default: false
       repo_url:
         description: '源仓库 URL'
         default: 'https://github.com/padavanonly/immortalwrt-mt798x-24.10'
@@ -79,11 +79,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: last-checked-sha
-        continue-on-error: true  # 首次运行时 artifact 不存在，继续执行
+        continue-on-error: true
 
       - name: 安装 GitHub CLI
         run: |
-          sudo apt-get update
+          sudo apt-get update -y
           sudo apt-get install -y gh
 
       - name: 检查源仓库更新
@@ -149,12 +149,16 @@ jobs:
         run: |
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
           sudo docker image prune --all --force
-          sudo apt-get update
-          sudo apt-get install -y build-essential ccache cmake curl git gawk gcc-multilib g++-multilib \
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            build-essential ccache cmake curl git gawk gcc-multilib g++-multilib \
             libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
             libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool \
-            ninja-build python3 python3-pyelftools rsync unzip vim wget zlib1g-dev
-          sudo apt-get autoremove --purge
+            ninja-build python3 python3-pip python3-ply python3-docutils python3-pyelftools \
+            rsync unzip vim wget zlib1g-dev squashfs-tools device-tree-compiler zstd \
+            binutils bison flex gettext p7zip p7zip-full patch pkgconf \
+            autopoint asciidoc xmlto texinfo
+          sudo apt-get autoremove --purge -y
           sudo apt-get clean
           sudo timedatectl set-timezone "$TZ" || echo "警告：无法设置时区"
           sudo mkdir -p /workdir
@@ -228,7 +232,7 @@ jobs:
         run: |
           cd openwrt
           make download -j8 || { echo "下载软件包失败"; exit 1; }
-          find dl -size -1024c -exec rm -f {} \; || echo "警告：无法清理 dl 目录中的小文件"
+          find dl -size -1024c -exec rm -fLas {} \; || echo "警告：无法清理 dl 目录中的小文件"
 
       - name: 修改 5G 25dB
         if: env.ENABLE_5G_25DB == 'true'
@@ -269,23 +273,22 @@ jobs:
             openwrt/logs/**/*
             openwrt/*.log
 
-      - name: 提取固件版本号 
+      - name: 提取固件版本号
         id: version
         if: steps.compile.outputs.status == 'success'
-        run:  |
-         cd openwrt
+        run: |
+          cd openwrt
           if [ -f openwrt_release ]; then
-       # 从DISTRIB_REVISION中提取r33303部分
-VERSION=$(grep -E "^DISTRIB_REVISION=" openwrt_release | cut -d"'" -f2 | sed 's/\(r[0-9]\+\).*/\1/' | tr -d '[:space:]' || echo "unknown")
-       echo "提取的纯版本号: $VERSION"
-      echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-      echo "status=success" >> $GITHUB_OUTPUT
-    else
-      VERSION=$(git rev-parse --short HEAD | cut -d'-' -f1 || echo "unknown")
-      echo "openwrt_release 文件不存在，使用 Git 提交哈希: $VERSION"
-      echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-      echo "status=success" >> $GITHUB_OUTPUT
-    fi
+            VERSION=$(grep -E "^DISTRIB_REVISION=" openwrt_release | cut -d"'" -f2 | sed 's/\(r[0-9]\+\).*/\1/' | tr -d '[:space:]' || echo "unknown")
+            echo "提取的纯版本号: $VERSION"
+            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(git rev-parse --short HEAD | cut -d'-' -f1 || echo "unknown")
+            echo "openwrt_release 文件不存在，使用 Git 提交哈希: $VERSION"
+            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
+            echo "status=success" >> $GITHUB_OUTPUT
+          fi
 
       - name: 整理固件并固定文件名
         id: organize
@@ -312,10 +315,10 @@ VERSION=$(grep -E "^DISTRIB_REVISION=" openwrt_release | cut -d"'" -f2 | sed 's/
           set -e
           echo "RELEASE_TAG=ImmortalWrt-24.10-${{ matrix.device_model }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
           cat << EOF > release.txt
-          **固件版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}  
-          **设备**: ${{ matrix.device_model }}  
-          **编译时间**: $(date +"%Y-%m-%d %H:%M %Z")  
-          **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}  
+          **固件版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
+          **设备**: ${{ matrix.device_model }}
+          **编译时间**: $(date +"%Y-%m-%d %H:%M %Z")
+          **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
           EOF
           echo "status=success" >> $GITHUB_OUTPUT
 
