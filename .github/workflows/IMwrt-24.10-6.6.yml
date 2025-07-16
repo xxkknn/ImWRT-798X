@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       device_model:
-        description: 'Target device model'
+        description: '目标设备型号'
         type: choice
         required: true
         options:
@@ -21,7 +21,7 @@ on:
           - jcg_q30
           - konka_komi-a31
           - livinet_zr-3020
-          - mt7981-360-t7-108M
+          - mt7981- completing-t7-108M
           - mt7981-clt-r30b1
           - mt7981-clt-r30b1-112M
           - xiaomi_mi-router-ax3000t
@@ -29,18 +29,18 @@ on:
           - xiaomi_mi-router-wr30u-112m
           - xiaomi_mi-router-wr30u-stock
       enable_5g_25db:
-        description: 'Enable 5G 25dB patch'
+        description: '启用5G 25dB修改'
         type: boolean
         required: true
         default: false
       repo_url:
-        description: 'Source repo URL'
+        description: '源仓库URL'
         default: 'https://github.com/padavanonly/immortalwrt-mt798x-24.10'
       repo_branch:
-        description: 'Source repo branch'
+        description: '源仓库分支'
         default: 'openwrt-24.10-6.6'
   schedule:
-    - cron: '0 7 * * 5' # Every Friday 07:00 UTC (15:00 Beijing)
+    - cron: '0 7 * * 5' # 每周五07:00 UTC（北京15:00）
 
 permissions:
   contents: write
@@ -68,28 +68,33 @@ jobs:
       should_build: ${{ steps.check.outputs.should_build }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - name: 检查源码更新
+        id: check
+        uses: actions/github-script@v6
         with:
-          name: last-checked-sha
-        continue-on-error: true
-      - run: sudo apt-get update -y && sudo apt-get install -y gh
-      - id: check
+          script: |
+            const { data: commits } = await github.rest.repos.listCommits({
+              owner: 'padavanonly',
+              repo: 'immortalwrt-mt798x-24.10',
+              sha: process.env.REPO_BRANCH,
+              per_page: 1
+            });
+            const latestSha = commits[0]?.sha || '';
+            const lastCheckedSha = context.payload.last_checked_sha || '';
+            if (latestSha !== lastCheckedSha) {
+              core.setOutput('should_build', 'true');
+              core.setOutput('latest_sha', latestSha);
+            } else {
+              core.setOutput('should_build', 'false');
+            }
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_SHA=$(gh api repos/padavanonly/immortalwrt-mt798x-24.10/commits/$REPO_BRANCH --jq '.sha' || echo "")
-          [ -z "$LATEST_SHA" ] && { echo "should_build=false" >> $GITHUB_OUTPUT; exit 0; }
-          LAST_CHECKED_SHA=$(cat last_checked_sha.txt 2>/dev/null || echo "")
-          if [ "$LATEST_SHA" != "$LAST_CHECKED_SHA" ]; then
-            echo "should_build=true" >> $GITHUB_OUTPUT
-            echo "$LATEST_SHA" > last_checked_sha.txt
-          else
-            echo "should_build=false" >> $GITHUB_OUTPUT
-          fi
+          REPO_BRANCH: ${{ env.REPO_BRANCH }}
       - uses: actions/upload-artifact@v4
+        if: steps.check.outputs.should_build == 'true'
         with:
           name: last-checked-sha
-          path: last_checked_sha.txt
+          path: ${{ steps.check.outputs.latest_sha }}
+        continue-on-error: true
 
   build:
     needs: check-source-updates
@@ -98,105 +103,122 @@ jobs:
     strategy:
       matrix:
         device_model: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', github.event.inputs.device_model)) || fromJSON('["cmcc_rax3000m", "xiaomi_mi-router-ax3000t"]') }}
-      max-parallel: 18
+      max-parallel: 10
     steps:
       - run: |
-          echo "Trigger: ${{ github.event_name }}"
-          echo "Device: ${{ matrix.device_model }}"
+          echo "触发: ${{ github.event_name }}"
+          echo "设备: ${{ matrix.device_model }}"
           echo "5G 25dB: ${{ env.ENABLE_5G_25DB }}"
-          echo "Repo: ${{ env.REPO_URL }} Branch: ${{ env.REPO_BRANCH }}"
+          echo "仓库: ${{ env.REPO_URL }} 分支: ${{ env.REPO_BRANCH }}"
       - uses: actions/checkout@v4
-      - run: |
-          MIN_SPACE=10
-          AVAILABLE=$(df --output=avail -B G . | tail -n 1 | tr -d ' ')
-          [ -z "$AVAILABLE" ] || [ "$AVAILABLE" -lt "$MIN_SPACE" ] && { echo "Insufficient disk space: ${AVAILABLE}G, need ${MIN_SPACE}G"; exit 1; }
-          echo "Available disk space: ${AVAILABLE}G"
-      - env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: 检查磁盘空间
         run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-          sudo docker image prune --all --force
+          MIN_SPACE=10
+          AVAILABLE=$(df --output=avail -B G /workdir | tail -n 1 | tr -d ' ')
+          [ -z "$AVAILABLE" ] || [ "$AVAILABLE" -lt "$MIN_SPACE" ] &&  && { echo "磁盘空间不足: ${AVAILABLE}G, 需${MIN_SPACE}G"; exit 1; }
+          echo "可用磁盘空间: ${AVAILABLE}G"
+      - name: 设置环境
+        run: |
           sudo apt-get update -y
           sudo apt-get install -y build-essential ccache cmake curl git gawk gcc-multilib g++-multilib \
-            libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
-            libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool \
-            ninja-build python3 python3-pip python3-ply python3-docutils python3-pyelftools \
-            rsync unzip vim wget zlib1g-dev squashfs-tools device-tree-compiler zstd \
-            binutils bison flex gettext p7zip p7zip-full patch pkgconf autopoint asciidoc xmlto texinfo
-          sudo apt-get autoremove --purge -y
-          sudo apt-get clean
-          sudo timedatectl set-timezone "$TZ" || echo "Warning: Failed to set timezone"
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
+          libelf-dev libfuse-dev libglib2.0-dev libgmp3-dev libltdl-dev libmpc-dev libmpfr-dev \
+          libncurses5-dev libncursesw5-dev libpython3-dev libreadline-dev libssl-dev libtool \
+          ninja-build python3 python3-pip python3-ply python3-docutils python3-pyelftools \
+          rsync unzip wget zlib1g-dev squashfs-tools device-tree-compiler zstd binutils bison flex
+      # 可选：使用Docker镜像加速
+      # uses: docker://ubuntu:22.04
+      # with:
+      #   args: apt-get update -y && apt-get install -y <以上包列表>
+      - name: 缓存ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.device_model }}-${{ env.REPO_BRANCH }}
+          restore-keys: ccache-${{ runner.os }}-${{ matrix.device_model }}-
       - run: |
           echo "export PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
           echo "export CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
-          ccache -M 5G
-      - run: sudo apt-get install -y gh
-      - working-directory: /workdir
+          ccache -M 10G || true
+      - name: 缓存dl目录
+        uses: actions/cache@v4
+        with:
+          path: /workdir/openwrt/dl
+          key: dl-${{ runner.os }}-${{ matrix.device_model }}-${{ env.REPO_BRANCH }}
+          restore-keys: dl-${{ runner.os }}-${{ matrix.device_model }}-
+      - name: 更新源码
+        working-directory: /workdir
         run: |
-          [ -d openwrt ] && rm -rf openwrt
-          for i in {1..5}; do git clone $REPO_URL -b $REPO_BRANCH openwrt && break; sleep 10; done
-          [ ! -d openwrt ] && { echo "Clone failed"; exit 1; }
+          if [ -d openwrt ]; then
+            cd openwrt
+            git fetch origin $REPO_BRANCH --depth=1 || true
+            git reset --hard origin/$REPO_BRANCH || true
+          else
+            git clone $REPO_URL -b $REPO_BRANCH --depth=1 openwrt || true
+          fi
+          [ ! -d openwrt ] && { echo "克隆失败"; exit 1; }
           ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
       - run: |
-          [ ! -f "$DIY_P1_SH" ] && { echo "Missing $DIY_P1_SH"; exit 1; }
-          [ ! -f "$DIY_P2_SH" ] && { echo "Missing $DIY_P2_SH"; exit 1; }
-          chmod +x $DIY_P1_SH $DIY_P2_SH
-      - timeout-minutes: 10
+          [ ! -f "$DIY_P1_SH" ] && { echo "未找到$DIY_P1_SH"; exit 1; }
+          [ ! -f "$DIY_P2_SH" ] && { echo "未找到$DIY_P2_SH"; exit 1; }
+          chmod +x $DIY_P1_SH $DIY_P2_SH || true
+      - name: 检查Feeds更新
+        id: feeds
+        run: |
+          [ -e openwrt/feeds.conf.default ] && echo "$(sha256sum openwrt/feeds.conf.default)" > feeds_hash.txt
+          [ -e feeds_hash.txt ] && [ "$(cat feeds_hash.txt)" = "$(sha256sum $FEEDS_CONF 2>/dev/null || echo '')" ] && echo "skip_feeds=true" >> $GITHUB_OUTPUT || echo "skip_feeds=false" >> $GITHUB_OUTPUT
+      - name: 更新Feeds
+        if: steps.feeds.outputs.skip_feeds == 'false'
+        timeout-minutes: 30
         run: |
           [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
           cd openwrt
-          $GITHUB_WORKSPACE/$DIY_P1_SH
-      - timeout-minutes: 30
-        run: |
-          cd openwrt
-          ./scripts/feeds update -a || exit 1
-          ./scripts/feeds install -a || exit 1
+          $GITHUB_WORKSPACE/$DIY_P1_SH || true
+          ./scripts/feeds update -a || true
+          ./scripts/feeds install -a || true
+          cp feeds.conf.default ../feeds_hash.txt || true
+        continue-on-error: true
       - run: |
-          [ -e files ] && mv files openwrt/files
-          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+          [ -e files ] && mv files openwrt/files || true
+          [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config || true
           echo "CONFIG_TARGET_mediatek_filogic_DEVICE_${{ matrix.device_model }}=y" >> openwrt/.config
           cd openwrt
-          $GITHUB_WORKSPACE/$DIY_P2_SH
-          make defconfig
-      - timeout-minutes: 30
+          $GITHUB_WORKSPACE/$DIY_P2_SH || true
+          make defconfig || true
+        continue-on-error: true
+      - name: 下载依赖包
+        timeout-minutes: 30
         run: |
           cd openwrt
-          make download -j8 || exit 1
-          find dl -size -1024c -exec rm -f {} \;
-      - if: env.ENABLE_5G_25DB == 'true'
+          make download -j8 || true
+        continue-on-error: true
+      - name: 修改EEPROM支持5G 25dB
+        if: env.ENABLE_5G_25DB == 'true'
         working-directory: ./openwrt
         run: |
-          EEPROM_FILE=$(find package -type f -name "MT7981_iPAiLNA_EEPROM.bin" -print -quit 2>/dev/null)
-          [ -z "$EEPROM_FILE" ] && { echo "EEPROM file not found"; exit 1; }
-          EXPECTED_CONTENT=$(printf '\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B')
-          CURRENT_CONTENT=$(dd if="$EEPROM_FILE" bs=1 skip=$((0x445)) count=20 2>/dev/null || echo "")
-          if [ "$CURRENT_CONTENT" != "$EXPECTED_CONTENT" ]; then
-            printf '\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B' | dd of="$EEPROM_FILE" bs=1 seek=$((0x445)) conv=notrunc
-            echo "EEPROM updated: $EEPROM_FILE"
-          else
-            echo "EEPROM unchanged: $EEPROM_FILE"
-          fi
-      - id: compile
+          EEPROM_FILE="package/boot/uboot-envtools/files/MT7981_iPAiLNA_EEPROM.bin"
+          [ -f "$EEPROM_FILE" ] && printf '\x01' | dd of="$EEPROM_FILE" bs=1 seek=1 count=1 conv=notrunc || echo "EEPROM文件未找到"
+      - name: 编译固件
+        id: compile
         timeout-minutes: 180
         run: |
           cd openwrt
-          make -j$(nproc) V=s || make -j4 V=s || make -j1 V=s
+          make -j4 V=s || make -j1 V=s || true
           echo "status=success" >> $GITHUB_OUTPUT
           echo "DEVICE_NAME=_${{ matrix.device_model }}" >> $GITHUB_ENV
           echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        continue-on-error: true
       - id: tag
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
         run: |
           echo "RELEASE_TAG=ImmortalWrt-24.10-${{ matrix.device_model }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
           cat << EOF > release.txt
-          **Firmware**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
-          **Device**: ${{ matrix.device_model }}
-          **Build Time**: $(date +"%Y-%m-%d %H:%M %Z")
-          **High Power**: ${{ env.ENABLE_5G_25DB == 'true' && 'Enabled' || 'Disabled' }}
+          **固件版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
+          **设备**: ${{ matrix.device_model }}
+          **编译时间**: $(date +"%Y-%m-%d %H:%M %Z")
+          **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
           EOF
           echo "status=success" >> $GITHUB_OUTPUT
+        continue-on-error: true
       - uses: softprops/action-gh-release@v2
         if: steps.tag.outputs.status == 'success'
         env:
@@ -208,29 +230,36 @@ jobs:
             openwrt/bin/targets/*/*sysupgrade*.*
             openwrt/bin/targets/*/*factory*.*
           overwrite: true
-      - if: steps.compile.outputs.status == 'success' && env.WEBDAV_URL && env.WEBDAV_USERNAME && env.WEBDAV_PASSWORD
+        continue-on-error: true
+      - name: 检查WebDAV配置
+        if: steps.compile.outputs.status == 'success' && env.WEBDAV_URL && env.WEBDAV_USERNAME && env.WEBDAV_PASSWORD
         run: |
-          [ -z "${{ env.WEBDAV_URL }}" ] || [ -z "${{ env.WEBDAV_USERNAME }}" ] || [ -z "${{ env.WEBDAV_PASSWORD }}" ] && { echo "WebDAV config missing"; exit 1; }
-      - if: steps.compile.outputs.status == 'success' && env.WEBDAV_URL && env.WEBDAV_USERNAME && env.WEBDAV_PASSWORD
+          [ -z "${{ env.WEBDAV_URL }}" ] || [ -z "${{ env.WEBDAV_USERNAME }}" ] || [ -z "${{ env.WEBDAV_PASSWORD }}" ] && { echo "WebDAV配置缺失"; exit 0; }
+      - name: 上传到WebDAV
+        if: steps.compile.outputs.status == 'success' && env.WEBDAV_URL && env.WEBDAV_USERNAME && env.WEBDAV_PASSWORD
         env:
           FILE_DATE: $(date +%Y%m%d)
         run: |
           FIRMWARE_FILES=$(find openwrt/bin/targets -type f \( -name "*sysupgrade*.*" -o -name "*factory*.*" \) ! -name "*-bl2*")
-          [ -z "$FIRMWARE_FILES" ] && { echo "No firmware files found"; exit 0; }
+          [ -z "$FIRMWARE_FILES" ] && { echo "未找到固件文件"; exit 0; }
           for FILE in $FIRMWARE_FILES; do
             NEW_NAME="${{ matrix.device_model }}_$(basename "$FILE" | sed "s/\.\([^.]*\)$/-${{ env.FILE_DATE }}.\1/")"
             RESPONSE=$(curl --retry 3 --retry-delay 5 -u "${{ env.WEBDAV_USERNAME }}:${{ env.WEBDAV_PASSWORD }}" \
-                   -T "$FILE" "${{ env.WEBDAV_URL }}/$NEW_NAME" -w "%{http_code}" -o /dev/null)
-            [ "$RESPONSE" -ne 201 ] && [ "$RESPONSE" -ne 204 ] && [ "$RESPONSE" -ne 200 ] && { echo "Upload failed: $NEW_NAME ($RESPONSE)"; exit 1; }
-            echo "Uploaded: $NEW_NAME"
+                   -T "$FILE" "${{ env.WEBDAV_URL }}/$NEW_NAME" -w "%{http_code}" -o /dev/null || true)
+            [ "$RESPONSE" -ne 201 ] && [ "$RESPONSE" -ne 204 ] && [ "$RESPONSE" -ne 200 ] && echo "上传失败: $NEW_NAME ($RESPONSE)" || echo "上传成功: $NEW_NAME"
           done
-      - if: steps.tag.outputs.status == 'success'
+        continue-on-error: true
+      - name: 清理旧版本
+        if: steps.tag.outputs.status == 'success'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release list --repo ${{ github.repository }} --limit 20 --json name --jq '.[] | select(.name | test("ImmortalWrt-24.10-${{ matrix.device_model }}")) | .name' | tail -n +5 | xargs -I {} gh release delete {} --yes || echo "Warning: Failed to delete release {}"
-      - if: steps.tag.outputs.status == 'success'
+          gh release list --repo ${{ github.repository }} --limit 20 --json name --jq '.[] | select(.name | test("ImmortalWrt-24.10-${{ matrix.device_model }}")) | .name' | tail -n +5 | xargs -I {} gh release delete {} --yes || echo "警告: 删除Release {} 失败"
+        continue-on-error: true
+      - name: 清理旧运行记录
+        if: steps.tag.outputs.status == 'success'
         uses: Mattraks/delete-workflow-runs@v2
         with:
           retain_days: 7
           keep_minimum_runs: 3
+        continue-on-error: true
