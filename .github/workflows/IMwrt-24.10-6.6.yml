@@ -274,21 +274,20 @@ jobs:
             openwrt/*.log
 
       - name: 提取固件版本号
-        id: version
-        if: steps.compile.outputs.status == 'success'
-        run: |
-          cd openwrt
-          if [ -f openwrt_release ]; then
-            VERSION=$(grep -E "^DISTRIB_REVISION=" openwrt_release | cut -d"'" -f2 | sed 's/\(r[0-9]\+\).*/\1/' | tr -d '[:space:]' || echo "unknown")
-            echo "提取的纯版本号: $VERSION"
-            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            VERSION=$(git rev-parse --short HEAD | cut -d'-' -f1 || echo "unknown")
-            echo "openwrt_release 文件不存在，使用 Git 提交哈希: $VERSION"
-            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-            echo "status=success" >> $GITHUB_OUTPUT
-          fi
+  id: version
+  if: steps.compile.outputs.status == 'success'
+  run: |
+    cd openwrt
+    if [ -f build.version ]; then
+      VERSION=$(cat build.version | tr -d '[:space:]')
+      echo "提取的版本号: $VERSION"
+      echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
+      echo "status=success" >> $GITHUB_OUTPUT
+    else
+      echo "错误: build.version 文件不存在"
+      echo "status=failure" >> $GITHUB_OUTPUT
+      exit 1
+    fi
 
       - name: 整理固件并固定文件名
         id: organize
