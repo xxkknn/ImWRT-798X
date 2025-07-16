@@ -264,32 +264,7 @@ jobs:
           echo "DEVICE_NAME=_${{ matrix.device_model }}" >> $GITHUB_ENV
           echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
-      - name: 上传编译日志
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: compile-log-${{ matrix.device_model }}
-          path: |
-            openwrt/build_dir/**/*
-            openwrt/logs/**/*
-            openwrt/*.log
-
-      - name: 提取固件版本号
-        id: version
-        if: steps.compile.outputs.status == 'success'
-        run: |
-          cd openwrt
-          if [ -f build.version ]; then
-            VERSION=$(cat build.version | tr -d '[:space:]')
-            echo "提取的版本号: $VERSION"
-            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-            echo "status=success" >> $GITHUB_OUTPUT
-          else
-            echo "错误: build.version 文件不存在"
-            echo "status=failure" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-      
+     
       - name: 生成标签和发布描述
         id: tag
         if: env.UPLOAD_RELEASE == 'true' && steps.compile.outputs.status == 'success'
