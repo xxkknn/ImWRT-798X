@@ -3,6 +3,7 @@
 # - repository_dispatch: 通过 API 触发（需要指定 build_firmware 类型）
 # - workflow_dispatch: 手动触发，支持选择设备型号和 5G 25dB 配置
 # - schedule: 每周五 UTC 07:00（北京时间 15:00）检查源仓库更新并构建
+
 name: IMwrt-24.10-6.6
 
 on:
@@ -48,8 +49,8 @@ on:
     - cron: '0 7 * * 5'  # 每周五 UTC 时间 07:00（北京时间 15:00）
 
 permissions:
-  contents: write  # 用于发布 GitHub Releases
-  actions: write   # 用于清理旧工作流运行
+  contents: write    # 用于发布 GitHub Releases
+  actions: write     # 用于清理旧工作流运行
 
 env:
   REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/padavanonly/immortalwrt-mt798x-24.10' }}
@@ -274,20 +275,20 @@ jobs:
             openwrt/*.log
 
       - name: 提取固件版本号
-  id: version
-  if: steps.compile.outputs.status == 'success'
-  run: |
-    cd openwrt
-    if [ -f build.version ]; then
-      VERSION=$(cat build.version | tr -d '[:space:]')
-      echo "提取的版本号: $VERSION"
-      echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
-      echo "status=success" >> $GITHUB_OUTPUT
-    else
-      echo "错误: build.version 文件不存在"
-      echo "status=failure" >> $GITHUB_OUTPUT
-      exit 1
-    fi
+        id: version
+        if: steps.compile.outputs.status == 'success'
+        run: |
+          cd openwrt
+          if [ -f build.version ]; then
+            VERSION=$(cat build.version | tr -d '[:space:]')
+            echo "提取的版本号: $VERSION"
+            echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "错误: build.version 文件不存在"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            exit 1
+          fi
 
       - name: 整理固件并固定文件名
         id: organize
