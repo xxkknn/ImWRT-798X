@@ -40,10 +40,10 @@ on:
         default: false
       repo_url:
         description: '源仓库 URL'
-        default: 'https://github.com/padavanonly/immortalwrt-mt798x-24.10'
+        default: 'https://github.com/xxkknn/immortalwrt-mt798x-6.6'
       repo_branch:
         description: '源仓库分支'
-        default: 'openwrt-24.10-6.6'
+        default: 'xxkknn-256m'
   schedule:
     - cron: '0 7 * * 5'  # 每周五 UTC 时间 07:00（北京时间 15:00）
 
